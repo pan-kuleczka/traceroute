@@ -1,3 +1,4 @@
+// Jeremiasz Preiss 337434
 #include <bits/stdc++.h>
 #include <assert.h>
 #include <arpa/inet.h>
@@ -13,13 +14,14 @@ const int MAX_WAIT_TIME_MS = 1000;
 const int MAX_TTL = 30;
 const int ECHO_COUNT = 3;
 
+// KOD Z WYKŁADU
+
 void print_as_bytes(unsigned char *buff, ssize_t length)
 {
     for (ssize_t i = 0; i < length; i++, buff++)
         printf("%.2x ", *buff);
 }
 
-// KOD Z WYKŁADU
 uint16_t compute_icmp_checksum(const void *buff, int length)
 {
     const uint16_t *ptr = (uint16_t *)buff;
@@ -30,7 +32,6 @@ uint16_t compute_icmp_checksum(const void *buff, int length)
     sum = (sum >> 16U) + (sum & 0xffffU);
     return (uint16_t)(~(sum + (sum >> 16U)));
 }
-// KONIEC KODU Z WYKŁADU
 
 icmp createEchoHeader(int seq)
 {
@@ -53,6 +54,8 @@ sockaddr_in createRecipientSockaddr(const std::string &address)
         throw std::runtime_error("Invalid address");
     return recipient;
 }
+
+// KONIEC KODU Z WYKŁADU
 
 struct EchoResponse
 {
@@ -125,7 +128,7 @@ struct SocketWrapper
 
         char sender_ip_str[20];
         inet_ntop(AF_INET, &(sender.sin_addr), sender_ip_str, sizeof(sender_ip_str));
-        
+
         // Check the response type
         struct ip *ip_header = (struct ip *)buffer;
         uint8_t *icmp_packet = buffer + 4 * ip_header->ip_hl;
@@ -154,6 +157,11 @@ struct SocketWrapper
         {
             // We pinged ourselves...
             response.success = true;
+        }
+        else if (icmp_header->icmp_type == ICMP_DEST_UNREACH)
+        {
+            response.success = false;
+            response.seq = -1;
         }
         else
         {
@@ -219,7 +227,7 @@ int32_t main(int argc, char *argv[])
         int receivedSeqs = 0;
         int responseTimes[ECHO_COUNT];
 
-        for(int i = 0; i < ECHO_COUNT; i++)
+        for (int i = 0; i < ECHO_COUNT; i++)
             responseTimes[i] = -1;
 
         std::set<std::string> responders;
@@ -228,26 +236,27 @@ int32_t main(int argc, char *argv[])
         int destinationResponseTime = -1;
 
         // Wait for responses
-        while(timer.elapsedMS() < MAX_WAIT_TIME_MS)
+        while (timer.elapsedMS() < MAX_WAIT_TIME_MS)
         {
             int remainingTime = MAX_WAIT_TIME_MS - timer.elapsedMS();
 
             if (!socket->pollReceive(remainingTime))
                 break; // Timeout
-            
+
             EchoResponse response;
 
             // Receive the response
-            try{
+            try
+            {
                 response = socket->receiveEchoResponse();
             }
-            catch(const std::exception &e)
+            catch (const std::exception &e)
             {
                 std::cerr << "Error while receiving response: " << e.what() << std::endl;
-                return -1;
+                return 1;
             }
 
-            if(response.success)
+            if (response.success)
             {
                 // We received a response from the destination, stop the traceroute
                 reachedDestination = true;
@@ -259,41 +268,41 @@ int32_t main(int argc, char *argv[])
                 continue; // This response is for a different TTL, ignore it
 
             int index = response.seq - firstSeq;
-            if(responseTimes[index] == -1)
+            if (responseTimes[index] == -1)
             {
                 // This is the first response for this sequence number
                 responseTimes[index] = timer.elapsedMS();
                 receivedSeqs++;
             }
-                
+
             responders.insert(response.sender_ip_str);
 
-            if(receivedSeqs == ECHO_COUNT)
+            if (receivedSeqs == ECHO_COUNT)
                 break; // All responses received
         }
 
         std::string respondersStr;
-        if(reachedDestination)
+        if (reachedDestination)
             respondersStr = address + " ";
         else
         {
-            for(const auto &ip : responders)
+            for (const auto &ip : responders)
                 respondersStr += ip + " ";
-            if(respondersStr.empty())
+            if (respondersStr.empty())
                 respondersStr = "* ";
         }
 
         std::string responseTimeStr;
-        if(reachedDestination)
+        if (reachedDestination)
             responseTimeStr = std::to_string(destinationResponseTime) + "ms";
-        else if(receivedSeqs == 0)
+        else if (receivedSeqs == 0)
             responseTimeStr = "";
-        else if(receivedSeqs < ECHO_COUNT)
+        else if (receivedSeqs < ECHO_COUNT)
             responseTimeStr = "???";
         else
         {
             int avgResponseTime = 0;
-            for(int i = 0; i < ECHO_COUNT; i++)
+            for (int i = 0; i < ECHO_COUNT; i++)
                 avgResponseTime += responseTimes[i];
             avgResponseTime /= ECHO_COUNT;
             responseTimeStr = std::to_string(avgResponseTime) + "ms";
@@ -301,7 +310,8 @@ int32_t main(int argc, char *argv[])
 
         // Print the results
         std::cout << ttl << ". " << respondersStr << responseTimeStr << std::endl;
-        if(reachedDestination) break;
+        if (reachedDestination)
+            break;
     }
 
     return 0;
