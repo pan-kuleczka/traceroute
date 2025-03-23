@@ -62,6 +62,7 @@ struct EchoResponse
     int32_t sender_ip;
     std::string sender_ip_str;
     bool success;
+    int id;
     int seq;
 };
 
@@ -142,6 +143,8 @@ struct SocketWrapper
         if (icmp_header->icmp_type == ICMP_ECHOREPLY)
         {
             response.success = true;
+            response.id = icmp_header->icmp_hun.ih_idseq.icd_id;
+            response.seq = icmp_header->icmp_hun.ih_idseq.icd_seq;
         }
         else if (icmp_header->icmp_type == ICMP_TIME_EXCEEDED)
         {
@@ -151,12 +154,15 @@ struct SocketWrapper
             struct ip *original_ip_header = (struct ip *)(icmp_packet + 8);
             uint8_t *original_icmp_packet = icmp_packet + 8 + 4 * original_ip_header->ip_hl;
             struct icmp *original_icmp_header = (struct icmp *)original_icmp_packet;
+            response.id = original_icmp_header->icmp_hun.ih_idseq.icd_id;
             response.seq = original_icmp_header->icmp_seq;
         }
         else if (icmp_header->icmp_type == ICMP_ECHO)
         {
             // We pinged ourselves...
             response.success = true;
+            response.id = icmp_header->icmp_hun.ih_idseq.icd_id;
+            response.seq = icmp_header->icmp_hun.ih_idseq.icd_seq;
         }
         else if (icmp_header->icmp_type == ICMP_DEST_UNREACH)
         {
@@ -255,6 +261,9 @@ int32_t main(int argc, char *argv[])
                 std::cerr << "Error while receiving response: " << e.what() << std::endl;
                 return 1;
             }
+
+            if(response.id != getpid())
+                continue; // This response is for a different process, ignore it
 
             if (response.success)
             {
