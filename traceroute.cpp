@@ -38,8 +38,8 @@ icmp createEchoHeader(int seq)
     icmp header;
     header.icmp_type = ICMP_ECHO;
     header.icmp_code = 0;
-    header.icmp_hun.ih_idseq.icd_id = getpid();
-    header.icmp_hun.ih_idseq.icd_seq = seq;
+    header.icmp_hun.ih_idseq.icd_id = htons(getpid() & 0xFFFF);
+    header.icmp_hun.ih_idseq.icd_seq = htons(seq);
     header.icmp_cksum = 0;
     header.icmp_cksum = compute_icmp_checksum((uint16_t *)&header, sizeof(header));
     return header;
@@ -143,8 +143,8 @@ struct SocketWrapper
         if (icmp_header->icmp_type == ICMP_ECHOREPLY)
         {
             response.success = true;
-            response.id = icmp_header->icmp_hun.ih_idseq.icd_id;
-            response.seq = icmp_header->icmp_hun.ih_idseq.icd_seq;
+            response.id = ntohs(icmp_header->icmp_hun.ih_idseq.icd_id);
+            response.seq = ntohs(icmp_header->icmp_hun.ih_idseq.icd_seq);
         }
         else if (icmp_header->icmp_type == ICMP_TIME_EXCEEDED)
         {
@@ -154,15 +154,15 @@ struct SocketWrapper
             struct ip *original_ip_header = (struct ip *)(icmp_packet + 8);
             uint8_t *original_icmp_packet = icmp_packet + 8 + 4 * original_ip_header->ip_hl;
             struct icmp *original_icmp_header = (struct icmp *)original_icmp_packet;
-            response.id = original_icmp_header->icmp_hun.ih_idseq.icd_id;
-            response.seq = original_icmp_header->icmp_seq;
+            response.id = ntohs(original_icmp_header->icmp_hun.ih_idseq.icd_id);
+            response.seq = ntohs(original_icmp_header->icmp_seq);
         }
         else if (icmp_header->icmp_type == ICMP_ECHO)
         {
             // We pinged ourselves...
             response.success = true;
-            response.id = icmp_header->icmp_hun.ih_idseq.icd_id;
-            response.seq = icmp_header->icmp_hun.ih_idseq.icd_seq;
+            response.id = ntohs(icmp_header->icmp_hun.ih_idseq.icd_id);
+            response.seq = ntohs(icmp_header->icmp_hun.ih_idseq.icd_seq);
         }
         else if (icmp_header->icmp_type == ICMP_DEST_UNREACH)
         {
@@ -262,7 +262,7 @@ int32_t main(int argc, char *argv[])
                 return 1;
             }
 
-            if(response.id != getpid())
+            if(response.id != (getpid() & 0xFFFF))
                 continue; // This response is for a different process, ignore it
 
             if (response.success)
